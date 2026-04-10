@@ -1,0 +1,74 @@
+# rust_write_safety.rules — Rust write-time safety enforcement.
+# Technology: rust | Capability: write
+# Covers: unsafe blocks, memory transmutation, unchecked string ops, raw pointer
+#         casts, library panics, unwrap propagation, truncating numeric casts.
+
+rule no-unsafe-block {
+  enabled true
+  priority 100
+  severity error
+  DENY write
+  IF path GLOB "**/*.rs" AND content LINE_REGEX "\\bunsafe\\s*\\{"
+  MESSAGE "unsafe blocks are banned. Rust's safety guarantees exist to prevent memory corruption and undefined behaviour — every unsafe block is a hole in those guarantees. Rewrite using safe abstractions. If FFI is required, isolate it behind a safe wrapper and justify the invariants in a comment."
+}
+
+rule no-mem-transmute {
+  enabled true
+  priority 100
+  severity error
+  DENY write
+  IF path GLOB "**/*.rs" AND content CONTAINS "mem::transmute"
+  OR path GLOB "**/*.rs" AND content CONTAINS "std::mem::transmute"
+  MESSAGE "mem::transmute reinterprets raw bytes across types with no runtime checks — it is one of the most dangerous operations in Rust. Use From/Into, bytemuck::cast, or a union with a safe accessor pattern instead."
+}
+
+rule no-from-utf8-unchecked {
+  enabled true
+  priority 100
+  severity error
+  DENY write
+  IF path GLOB "**/*.rs" AND content CONTAINS "from_utf8_unchecked"
+  OR path GLOB "**/*.rs" AND content CONTAINS "from_utf8_unchecked_mut"
+  MESSAGE "str::from_utf8_unchecked() skips UTF-8 validation and is undefined behaviour on invalid input. Use str::from_utf8() which returns a Result<&str, Utf8Error> and handle the error explicitly."
+}
+
+rule no-raw-pointer-cast {
+  enabled true
+  priority 90
+  severity warning
+  ASK write
+  IF path GLOB "src/**/*.rs" AND content LINE_REGEX "\\bas \\*mut "
+  OR path GLOB "src/**/*.rs" AND content LINE_REGEX "\\bas \\*const "
+  MESSAGE "Raw pointer cast detected. Raw pointers bypass borrow-checker safety. Prefer references, Box<T>, or a safe abstraction. If this is required for FFI, wrap it in a safe function that enforces all invariants."
+  PROMPT "Is this raw pointer cast required for FFI or a C interop boundary? If so, ensure the pointer's lifetime and aliasing rules are documented. If not, refactor to use safe Rust references."
+}
+
+rule no-panic-in-library {
+  enabled true
+  priority 85
+  severity warning
+  ASK write
+  IF path GLOB "**/lib.rs" AND content LINE_REGEX "\\bpanic!"
+  OR path GLOB "src/lib/**/*.rs" AND content LINE_REGEX "\\bpanic!"
+  MESSAGE "panic!() in library code terminates the entire caller's program without recovery. Library code should return Result<T, E> and let the caller decide how to handle errors. Reserve panic!() for truly unrecoverable invariant violations that indicate a programming bug."
+  PROMPT "Can this panic!() be replaced with a Result return type? Callers of a library expect to be able to handle errors, not have their process killed."
+}
+
+rule no-unwrap-in-src {
+  enabled true
+  priority 80
+  severity warning
+  ASK write
+  IF path GLOB "src/**/*.rs" AND content CONTAINS ".unwrap()" AND path NOT GLOB "**/tests/**" AND path NOT GLOB "**/*_test.rs"
+  MESSAGE ".unwrap() panics on None or Err, crashing the process. Use the ? operator to propagate errors, match/if-let to handle them, or .unwrap_or()/.unwrap_or_else() for fallbacks. Reserve .unwrap() for test code and cases where you can prove the value is always Some/Ok."
+  PROMPT "Can this .unwrap() be replaced with '?' for propagation, or a match/if-let for explicit handling? Panics from .unwrap() in production code produce unhelpful backtraces."
+}
+
+rule no-integer-truncating-cast {
+  enabled true
+  priority 50
+  severity warning
+  LOG write
+  IF path GLOB "src/**/*.rs" AND content LINE_REGEX "\\s+as\\s+(u8|i8|u16|i16)\\b"
+  MESSAGE "Numeric cast to a narrower integer type silently truncates on overflow — Rust does not panic or saturate. Use .try_into().expect() to make the bounds check explicit, or TryFrom/TryInto for fallible conversion."
+}

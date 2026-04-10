@@ -1,0 +1,54 @@
+# rust_write_style.rules — Rust code quality and style guidance.
+# Technology: rust | Capability: write
+# Covers: todo!/unimplemented!, dead code suppression, clippy suppressions,
+#         unused attribute silencing, debug macros.
+
+rule no-todo-or-unimplemented {
+  enabled true
+  priority 75
+  severity warning
+  ASK write
+  IF path GLOB "src/**/*.rs" AND content CONTAINS "todo!()"
+  OR path GLOB "src/**/*.rs" AND content CONTAINS "unimplemented!()"
+  OR path GLOB "src/**/*.rs" AND content LINE_REGEX "\\btodo!\\s*\\("
+  OR path GLOB "src/**/*.rs" AND content LINE_REGEX "\\bunimplemented!\\s*\\("
+  MESSAGE "todo!() and unimplemented!() are placeholder macros that panic at runtime. They must not ship in production code — complete the implementation or return a proper error."
+  PROMPT "Is this a genuine stub left for later? If so, define the full implementation before merging. If the feature is intentionally deferred, return an explicit error (e.g., Err(Error::NotImplemented)) instead of panicking."
+}
+
+rule no-allow-dead-code {
+  enabled true
+  priority 45
+  severity warning
+  LOG write
+  IF path GLOB "**/*.rs" AND content CONTAINS "#[allow(dead_code)]"
+  MESSAGE "#[allow(dead_code)] silences a warning that usually means unused code should be deleted. Remove dead code rather than suppressing the warning. If the code is intentionally kept (e.g., for future use or a public API), add a comment explaining why."
+}
+
+rule no-allow-unused-attribute {
+  enabled true
+  priority 45
+  severity warning
+  LOG write
+  IF path GLOB "**/*.rs" AND content LINE_REGEX "#\\[allow\\(unused"
+  MESSAGE "#[allow(unused_*)] suppresses warnings about unused variables, imports, or functions. Unused items are usually dead code — remove them rather than hiding the warning."
+}
+
+rule no-allow-clippy-suppress {
+  enabled true
+  priority 55
+  severity warning
+  ASK write
+  IF path GLOB "**/*.rs" AND content LINE_REGEX "#\\[allow\\(clippy::"
+  MESSAGE "Clippy lint suppression detected. Clippy warnings exist because the flagged pattern is typically incorrect or suboptimal. Understand the lint before suppressing it — if suppression is truly justified, add a comment explaining why above the attribute."
+  PROMPT "What is the clippy lint being suppressed, and why? Suppressions without justification make it hard to audit safety and correctness. If the lint is a false positive, confirm and add a /* reason */ comment."
+}
+
+rule no-dbg-macro-in-src {
+  enabled true
+  priority 40
+  severity warning
+  LOG write
+  IF path GLOB "src/**/*.rs" AND content CONTAINS "dbg!("
+  MESSAGE "dbg!() is a debugging macro that prints to stderr at runtime — it should not appear in committed source code. Remove before merging, or use a structured logger (tracing, log crate) for persistent diagnostics."
+}

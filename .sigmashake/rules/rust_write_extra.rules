@@ -1,0 +1,30 @@
+# rust_write_extra.rules
+# Technology: rust | Capability: write
+
+rule rust-warn-command-injection {
+  enabled true
+  priority 85
+  severity warning
+  ASK write
+  IF path GLOB "**/*.rs" AND content LINE_REGEX "Command::new\\([\"'](sh|bash|cmd\\.exe|powershell\\.exe)[\"']\\)"
+  MESSAGE "Executing shell commands with untrusted input can lead to command injection. Avoid using a shell unless absolutely necessary, and prefer passing arguments directly to the target executable."
+  PROMPT "Are you certain that no untrusted input is being passed to this shell command?"
+}
+
+rule rust-warn-sql-injection {
+  enabled true
+  priority 90
+  severity error
+  DENY write
+  IF path GLOB "**/*.rs" AND content LINE_REGEX "format!\\([\"'].*(SELECT|INSERT|UPDATE|DELETE).*[\"'],.*\\)"
+  MESSAGE "Using format! to construct SQL queries is highly vulnerable to SQL injection. Use parameterized queries via your database driver or ORM (e.g., sqlx, diesel)."
+}
+
+rule rust-warn-insecure-crypto {
+  enabled true
+  priority 90
+  severity error
+  DENY write
+  IF path GLOB "**/Cargo.toml" AND content LINE_REGEX "(md5|sha1)\\s*="
+  MESSAGE "MD5 and SHA-1 are cryptographically broken. Use stronger hashing algorithms like SHA-256 (e.g., via the sha2 crate) or Blake3."
+}
