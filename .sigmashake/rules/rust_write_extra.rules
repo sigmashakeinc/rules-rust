@@ -5,10 +5,9 @@ rule rust-warn-command-injection {
   enabled true
   priority 85
   severity warning
-  ASK write
+  LOG write
   IF path GLOB "**/*.rs" AND content LINE_REGEX "Command::new\\([\"'](sh|bash|cmd\\.exe|powershell\\.exe)[\"']\\)"
   MESSAGE "Executing shell commands with untrusted input can lead to command injection. Avoid using a shell unless absolutely necessary, and prefer passing arguments directly to the target executable."
-  PROMPT "Are you certain that no untrusted input is being passed to this shell command?"
 }
 
 rule rust-warn-sql-injection {

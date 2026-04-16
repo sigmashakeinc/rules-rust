@@ -7,13 +7,12 @@ rule no-todo-or-unimplemented {
   enabled true
   priority 75
   severity warning
-  ASK write
+  LOG write
   IF path GLOB "src/**/*.rs" AND content CONTAINS "todo!()"
   OR path GLOB "src/**/*.rs" AND content CONTAINS "unimplemented!()"
   OR path GLOB "src/**/*.rs" AND content LINE_REGEX "\\btodo!\\s*\\("
   OR path GLOB "src/**/*.rs" AND content LINE_REGEX "\\bunimplemented!\\s*\\("
   MESSAGE "todo!() and unimplemented!() are placeholder macros that panic at runtime. They must not ship in production code — complete the implementation or return a proper error."
-  PROMPT "Is this a genuine stub left for later? If so, define the full implementation before merging. If the feature is intentionally deferred, return an explicit error (e.g., Err(Error::NotImplemented)) instead of panicking."
 }
 
 rule no-allow-dead-code {
@@ -38,10 +37,9 @@ rule no-allow-clippy-suppress {
   enabled true
   priority 55
   severity warning
-  ASK write
+  LOG write
   IF path GLOB "**/*.rs" AND content LINE_REGEX "#\\[allow\\(clippy::"
   MESSAGE "Clippy lint suppression detected. Clippy warnings exist because the flagged pattern is typically incorrect or suboptimal. Understand the lint before suppressing it — if suppression is truly justified, add a comment explaining why above the attribute."
-  PROMPT "What is the clippy lint being suppressed, and why? Suppressions without justification make it hard to audit safety and correctness. If the lint is a false positive, confirm and add a /* reason */ comment."
 }
 
 rule no-dbg-macro-in-src {

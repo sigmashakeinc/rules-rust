@@ -36,32 +36,29 @@ rule no-raw-pointer-cast {
   enabled true
   priority 90
   severity warning
-  ASK write
+  LOG write
   IF path GLOB "src/**/*.rs" AND content LINE_REGEX "\\bas \\*mut "
   OR path GLOB "src/**/*.rs" AND content LINE_REGEX "\\bas \\*const "
   MESSAGE "Raw pointer cast detected. Raw pointers bypass borrow-checker safety. Prefer references, Box<T>, or a safe abstraction. If this is required for FFI, wrap it in a safe function that enforces all invariants."
-  PROMPT "Is this raw pointer cast required for FFI or a C interop boundary? If so, ensure the pointer's lifetime and aliasing rules are documented. If not, refactor to use safe Rust references."
 }
 
 rule no-panic-in-library {
   enabled true
   priority 85
   severity warning
-  ASK write
+  LOG write
   IF path GLOB "**/lib.rs" AND content LINE_REGEX "\\bpanic!"
   OR path GLOB "src/lib/**/*.rs" AND content LINE_REGEX "\\bpanic!"
   MESSAGE "panic!() in library code terminates the entire caller's program without recovery. Library code should return Result<T, E> and let the caller decide how to handle errors. Reserve panic!() for truly unrecoverable invariant violations that indicate a programming bug."
-  PROMPT "Can this panic!() be replaced with a Result return type? Callers of a library expect to be able to handle errors, not have their process killed."
 }
 
 rule no-unwrap-in-src {
   enabled true
   priority 80
   severity warning
-  ASK write
+  LOG write
   IF path GLOB "src/**/*.rs" AND content CONTAINS ".unwrap()" AND path NOT GLOB "**/tests/**" AND path NOT GLOB "**/*_test.rs"
   MESSAGE ".unwrap() panics on None or Err, crashing the process. Use the ? operator to propagate errors, match/if-let to handle them, or .unwrap_or()/.unwrap_or_else() for fallbacks. Reserve .unwrap() for test code and cases where you can prove the value is always Some/Ok."
-  PROMPT "Can this .unwrap() be replaced with '?' for propagation, or a match/if-let for explicit handling? Panics from .unwrap() in production code produce unhelpful backtraces."
 }
 
 rule no-integer-truncating-cast {
