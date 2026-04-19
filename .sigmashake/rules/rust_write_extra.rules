@@ -27,3 +27,43 @@ rule rust-warn-insecure-crypto {
   IF path GLOB "**/Cargo.toml" AND content LINE_REGEX "(md5|sha1)\\s*="
   MESSAGE "MD5 and SHA-1 are cryptographically broken. Use stronger hashing algorithms like SHA-256 (e.g., via the sha2 crate) or Blake3."
 }
+
+rule rust-deny-tls-cert-verify-disabled {
+  enabled true
+  priority 95
+  severity error
+  DENY write
+  IF path GLOB "**/*.rs" AND content CONTAINS "danger_accept_invalid_certs(true)"
+  OR path GLOB "**/*.rs" AND content CONTAINS "danger_accept_invalid_hostnames(true)"
+  MESSAGE "RISK: disabling TLS certificate or hostname verification in reqwest lets any MITM attacker intercept HTTPS traffic and steal credentials. FIX: keep verification enabled; if you must trust a self-signed cert, load it explicitly with reqwest::Certificate::from_pem() and add_root_certificate()."
+}
+
+rule rust-deny-mem-uninitialized {
+  enabled true
+  priority 100
+  severity error
+  DENY write
+  IF path GLOB "**/*.rs" AND content CONTAINS "mem::uninitialized"
+  OR path GLOB "**/*.rs" AND content CONTAINS "std::mem::uninitialized"
+  MESSAGE "RISK: std::mem::uninitialized() is deprecated and produces immediate undefined behaviour for almost every type because the value is implicitly dropped on panic. FIX: use std::mem::MaybeUninit<T> and only read with .assume_init() after fully initialising via ptr::write."
+}
+
+rule rust-deny-tokio-tar-tarmageddon {
+  enabled true
+  priority 95
+  severity error
+  DENY write
+  IF path GLOB "**/Cargo.toml" AND content LINE_REGEX "^\\s*tokio-tar\\s*="
+  OR path GLOB "**/Cargo.toml" AND content LINE_REGEX "^\\s*async-tar\\s*="
+  MESSAGE "RISK: tokio-tar and async-tar contain the unpatched TARmageddon boundary-parsing bug (CVE-2025-62518, CVSS 8.1) that enables RCE via crafted archives; tokio-tar is unmaintained. FIX: migrate to the patched fork astral-tokio-tar >= 0.5.6."
+}
+
+rule rust-warn-env-set-var {
+  enabled true
+  priority 70
+  severity warning
+  LOG write
+  IF path GLOB "src/**/*.rs" AND content LINE_REGEX "\\benv::set_var\\s*\\("
+  OR path GLOB "src/**/*.rs" AND content LINE_REGEX "\\benv::remove_var\\s*\\("
+  MESSAGE "RISK: std::env::set_var / remove_var are unsafe in Rust 2024 because they race with getenv in other threads and can cause memory unsafety in multi-threaded programs. FIX: set environment variables before spawning threads, or pass configuration through function arguments / a typed config struct instead."
+}
